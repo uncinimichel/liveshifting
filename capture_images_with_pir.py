@@ -7,6 +7,29 @@ import picamera
 from gpiozero import MotionSensor
 
 
+class SplitFrames(object):
+    def __init__(self, connection):
+        self.connection = connection
+        self.stream = io.BytesIO()
+        self.frame_num = 0
+
+    def write(self, buf):
+        if buf.startswith(b'\xff\xd8'):
+            # Start of new frame; send the old one's length
+            # then the data
+            size = self.stream.tell()
+            if size > 0:
+                self.connection.write(struct.pack('<L', size))
+                # Send the size of the new image
+                self.connection.flush()
+                self.stream.seek(0)
+                self.connection.write(self.stream.read(size))
+                self.frame_num += 1
+                self.stream.seek(0)
+                self.stream.truncate()
+        self.stream.write(buf)
+
+
 def main():
     # Set pir
     pir = MotionSensor(4)
@@ -16,36 +39,35 @@ def main():
 
     # Make a file-like object out of the connection
     connection = client_socket.makefile('wb')
+    output = SplitFrames(connection)
     try:
         while True:
             is_motion = pir.motion_detected
 
             if is_motion:
-                with picamera.PiCamera() as camera:
-                    camera.resolution = (640, 480)
-                    # Start a preview and let the camera warm up for 2 seconds
-                    camera.start_preview()
+                start = time.time()
+                with picamera.PiCamera(resolution='VGA', framerate=30) as camera:
+                    camera.rotation = 180
                     time.sleep(2)
-                    stream = io.BytesIO()
-                    for _ in camera.capture_continuous(stream, 'jpeg'):
-                        # Write the length of the capture to the stream and flush to
-                        # ensure it actually gets sent
-                        connection.write(struct.pack('<L', stream.tell()))
-                        connection.flush()
-                        # Rewind the stream and send the image data over the wire
-                        stream.seek(0)
-                        connection.write(stream.read())
+                    camera.start_recording(output, format='mjpeg')
+                    # Keep recording if motion is detected
+                    while True:
+                        camera.wait_recording(1)
                         is_still_in_motion = pir.motion_detected
                         if not is_still_in_motion:
                             break
-                        # Reset the stream for the next capture
-                        stream.seek(0)
-                        stream.truncate()
+                    camera.stop_recording()
+                    finish = time.time()
+                    print('Captured %d frames at %.2ffps for %d milliseconds' % (
+                        output.frame_num,
+                        output.frame_num / (finish - start),
+                        (finish - start)))
             else:
                 time.sleep(2)
 
     finally:
-        # Write a length of zero to the stream to signal we're done
+        # Write the terminating 0-length to the connection to let the
+        # server know we're done
         connection.write(struct.pack('<L', 0))
         connection.close()
         client_socket.close()

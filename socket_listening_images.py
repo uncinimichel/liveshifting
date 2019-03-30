@@ -7,6 +7,8 @@ from time import time
 
 from PIL import Image
 
+from aws import     update_image
+
 # Start a socket listening for connections on 0.0.0.0:8000 (0.0.0.0 means all interfaces)
 server_socket = socket.socket()
 server_socket.bind(('0.0.0.0', 8000))
@@ -25,12 +27,18 @@ def save_image_in_folder(pil_image, folder=images_path):
     today_images = os.path.join(folder, today)
     if not os.path.isdir(today_images):
         os.makedirs(today_images)
-    image_name = str(time()).split('.')[0] + '.png'
+    image_name = str(time()).split('.')[0] + '.jpeg'
     image_path = os.path.join(today_images, image_name)
     print(image_path)
-    pil_image.save(image_path, "PNG")
-    # pil_image.save(image_path, "PNG")
+    pil_image.save(image_path)
     print('Image is saved')
+
+
+def save_image_to_aws(fn_upload, pil_image):
+    image_name = str(time()).split('.')[0] + '.jpeg'
+    in_mem_file = io.BytesIO()
+    pil_image.save(in_mem_file, format=pil_image.format)
+    fn_upload(in_mem_file.getvalue(), image_name)
 
 
 def main():
@@ -55,7 +63,8 @@ def main():
             print('Image is verified')
             # If you need to load the image after using this method, you must reopen the image file.
             image = Image.open(image_stream)
-            save_image_in_folder(image, images_path)
+            # save_image_in_folder(image, images_path)
+            save_image_to_aws(update_image, image)
 
     finally:
         connection.close()
