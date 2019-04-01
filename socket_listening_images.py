@@ -7,7 +7,7 @@ from time import time
 
 from PIL import Image
 
-from aws import     update_image
+from aws import update_image
 
 # Start a socket listening for connections on 0.0.0.0:8000 (0.0.0.0 means all interfaces)
 server_socket = socket.socket()
