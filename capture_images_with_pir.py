@@ -17,13 +17,16 @@ class SplitFrames(object):
         self.frame_num = 0
 
     def write(self, buf):
+        print("Here in the write")
         self.connection.write(struct.pack('<b', recording_mode["recording"]))
         self.connection.flush()
 
         if buf.startswith(b'\xff\xd8'):
+            print("Here in the buf.startswith")
             # Start of new frame; send the old one's length
             # then the data
             size = self.stream.tell()
+            print("image Size")
             if size > 0:
                 self.connection.write(struct.pack('<L', size))
                 # Send the size of the new image

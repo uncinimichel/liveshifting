@@ -89,7 +89,7 @@ class SocketListeningImages:
 
                 image_binary = connection.read(image_len)
                 image = self.verify_and_get_image(image_binary)
-
+                
                 if base_image is None:
                     base_image = image
 
