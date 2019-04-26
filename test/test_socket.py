@@ -19,11 +19,14 @@ def main():
         while True:
             i = i + 1
             stream = io.BytesIO()
-            img = Image.open('./pasqua1.jpeg', mode='r')
+            img = Image.open('./testImages/with_person.jpeg', mode='r')
             img.save(stream, format='PNG')
 
             # Write the length of the capture to the stream and flush to
             # ensure it actually gets sent
+            connection.write(struct.pack('<b', 1))
+            connection.flush()
+
             connection.write(struct.pack('<L', stream.tell()))
             connection.flush()
             # Rewind the stream and send the image data over the wire

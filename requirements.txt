@@ -1,4 +1,8 @@
+numpy
 Pillow
 boto3
 gpiozero
 picamera
+pandas
+opencv-python
+imutils

@@ -6,14 +6,20 @@ import time
 import picamera
 from gpiozero import MotionSensor
 
+recording_mode = {'recording': 1, 'pause_recording': 2, 'exit_recording': 0}
+
 
 class SplitFrames(object):
+
     def __init__(self, connection):
         self.connection = connection
         self.stream = io.BytesIO()
         self.frame_num = 0
 
     def write(self, buf):
+        self.connection.write(struct.pack('<b', recording_mode["recording"]))
+        self.connection.flush()
+
         if buf.startswith(b'\xff\xd8'):
             # Start of new frame; send the old one's length
             # then the data
@@ -27,7 +33,12 @@ class SplitFrames(object):
                 self.frame_num += 1
                 self.stream.seek(0)
                 self.stream.truncate()
+
         self.stream.write(buf)
+
+    def flush(self):
+        self.connection.write(struct.pack('<b', recording_mode["pause_recording"]))
+        self.connection.flush()
 
 
 def main():
@@ -43,7 +54,7 @@ def main():
     try:
         while True:
             is_motion = pir.motion_detected
-
+            # Tell someone that I detected motion
             if is_motion:
                 start = time.time()
                 with picamera.PiCamera(resolution='VGA', framerate=30) as camera:
@@ -56,6 +67,8 @@ def main():
                         is_still_in_motion = pir.motion_detected
                         if not is_still_in_motion:
                             break
+                        else:
+                            continue
                     camera.stop_recording()
                     finish = time.time()
                     print('Captured %d frames at %.2ffps for %d milliseconds' % (
@@ -64,11 +77,11 @@ def main():
                         (finish - start)))
             else:
                 time.sleep(2)
+                # Tell someone that there is no motion
 
     finally:
-        # Write the terminating 0-length to the connection to let the
-        # server know we're done
-        connection.write(struct.pack('<L', 0))
+        # Write the terminating exit_recording
+        connection.write(struct.pack('<b', recording_mode['exit_recording']))
         connection.close()
         client_socket.close()
 
